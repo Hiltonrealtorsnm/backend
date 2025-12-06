@@ -20,4 +20,5 @@ COPY --from=build /app/target/*.jar app.jar
 ENV PORT=8080
 EXPOSE 8080
 
-CMD ["java", "-jar", "app.jar"]
+# ✅ IMPORTANT: Bind Spring Boot to Render's assigned PORT
+CMD ["sh", "-c", "java -jar app.jar --server.port=${PORT}"]
