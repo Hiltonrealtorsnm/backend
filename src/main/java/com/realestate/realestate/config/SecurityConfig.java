@@ -28,52 +28,34 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         http.csrf(csrf -> csrf.disable())
-
             .authorizeHttpRequests(auth -> auth
 
-                // ✅ ✅ ✅ ALLOW ALL REACT ROUTES (VERY IMPORTANT)
-                .requestMatchers(
-                        "/",
-                        "/index.html",
-                        "/static/**",
-                        "/assets/**",
-
-                        // ✅ Frontend pages
-                        "/admin/**",
-                        "/properties",
-                        "/property/**",
-                        "/projects",
-                        "/project/**",
-                        "/sell",
-                        "/rent-properties",
-                        "/wishlist",
-                        "/about",
-                        "/contact-agent/**"
-                ).permitAll()
-
-                // ✅ Public admin APIs
+                // ✅ Admin authentication & password recovery (must be public)
                 .requestMatchers(
                         "/admin/login",
                         "/admin/create",
                         "/admin/forgot-password",
-                        "/admin/reset-password"
+                        "/admin/reset-password",
+                        "/admin/**"
                 ).permitAll()
 
-                // ✅ Public backend APIs (if needed)
+                // ✅ Public endpoints if you need them later (optional)
                 .requestMatchers(
                         "/uploads/**",
+                        "/property/**",
                         "/seller/**",
-                        "/enquiry/**"
+                        "/enquiry/**",
+                        "/project/**"
                 ).permitAll()
 
-                // 🔒 Everything else requires JWT
+                // ✅ Everything else requires JWT
                 .anyRequest().authenticated()
             )
 
-            // 🔒 Stateless JWT security
+            // 🔒 No session — only JWT
             .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
-        // 🔐 JWT filter
+        // 🔐 Add JWT filter before UsernamePasswordAuthenticationFilter
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
