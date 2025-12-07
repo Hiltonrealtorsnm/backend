@@ -30,16 +30,26 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
 
-                // ✅ Admin authentication & password recovery (must be public)
+                // ✅ ✅ ✅ PUBLIC FRONTEND ROUTES (React Must Load)
                 .requestMatchers(
-                        "/admin/login",
-                        "/admin/create",
-                        "/admin/forgot-password",
-                        "/admin/reset-password",
-                        "/admin/**"
+                        "/",
+                        "/index.html",
+                        "/favicon.ico",
+                        "/static/**",
+                        "/assets/**",
+                        "/admin",          
+                        "/admin/**"        
                 ).permitAll()
 
-                // ✅ Public endpoints if you need them later (optional)
+                // ✅ ✅ ✅ PUBLIC ADMIN AUTH APIs ONLY
+                .requestMatchers(
+                        "/api/admin/login",
+                        "/api/admin/create",
+                        "/api/admin/forgot-password",
+                        "/api/admin/reset-password"
+                ).permitAll()
+
+                // ✅ ✅ ✅ PUBLIC USER APIs
                 .requestMatchers(
                         "/uploads/**",
                         "/property/**",
@@ -48,14 +58,14 @@ public class SecurityConfig {
                         "/project/**"
                 ).permitAll()
 
-                // ✅ Everything else requires JWT
+                // 🔒 🔥 EVERYTHING ELSE REQUIRES JWT
                 .anyRequest().authenticated()
             )
 
             // 🔒 No session — only JWT
             .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
-        // 🔐 Add JWT filter before UsernamePasswordAuthenticationFilter
+        // 🔐 Add JWT filter before security chain
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
