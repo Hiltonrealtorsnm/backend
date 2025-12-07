@@ -66,7 +66,7 @@ public class AdminController {
 
         try {
             Admin saved = adminService.createAdmin(admin);
-            saved.setPassword(null);
+           
             return ResponseEntity.ok(saved);
 
         } catch (RuntimeException e) {
