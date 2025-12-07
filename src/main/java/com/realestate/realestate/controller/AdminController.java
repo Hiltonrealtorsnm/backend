@@ -38,7 +38,9 @@ public class AdminController {
                 )
             );
         } catch (Exception e) {
-            return ResponseEntity.status(401).body("Invalid credentials");
+            return ResponseEntity.status(401).body(
+                    Map.of("error", "Invalid credentials")
+            );
         }
 
         Admin admin = adminService.findByEmail(req.getEmail());
@@ -66,27 +68,58 @@ public class AdminController {
 
         try {
             Admin saved = adminService.createAdmin(admin);
-           
             return ResponseEntity.ok(saved);
 
         } catch (RuntimeException e) {
-            return ResponseEntity.status(409).body(Map.of("error", e.getMessage()));
+            return ResponseEntity.status(409).body(
+                    Map.of("error", e.getMessage())
+            );
         }
     }
 
     // ---------------- FORGOT PASSWORD (OTP) --------------------
     @PostMapping("/forgot-password")
     public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> body) {
-        return adminService.forgotPassword(body.get("email"));
+
+        String email = body.get("email");
+
+        if (email == null || email.isBlank()) {
+            return ResponseEntity.badRequest().body(
+                    Map.of("error", "Email is required")
+            );
+        }
+
+        try {
+            return adminService.forgotPassword(email);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(
+                    Map.of("error", e.getMessage())
+            );
+        }
     }
 
     // ---------------- RESET PASSWORD ----------------------
     @PostMapping("/reset-password")
     public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> body) {
-        return adminService.resetPassword(
-                body.get("email"),
-                body.get("otp"),
-                body.get("newPassword")
-        );
+
+        String email = body.get("email");
+        String otp = body.get("otp");
+        String newPassword = body.get("newPassword");
+
+        if (email == null || otp == null || newPassword == null ||
+            email.isBlank() || otp.isBlank() || newPassword.isBlank()) {
+
+            return ResponseEntity.badRequest().body(
+                    Map.of("error", "Email, OTP, and new password are required")
+            );
+        }
+
+        try {
+            return adminService.resetPassword(email, otp, newPassword);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(
+                    Map.of("error", e.getMessage())
+            );
+        }
     }
 }

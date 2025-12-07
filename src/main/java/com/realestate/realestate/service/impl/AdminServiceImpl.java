@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,9 +27,13 @@ public class AdminServiceImpl implements AdminService {
     @Autowired
     private EmailService emailService;
 
-    // TEMP OTP MEMORY CACHE
-    private final Map<String, String> otpStore = new ConcurrentHashMap<>();
+    // ✅ OTP Store with Expiry (email -> OTP + expiry)
+    private final Map<String, OtpData> otpStore = new ConcurrentHashMap<>();
 
+    // ✅ OTP valid for 10 minutes
+    private static final long OTP_EXPIRY_MS = 10 * 60 * 1000;
+
+    // ================== LOGIN ==================
     @Override
     public Admin login(String email, String password) {
         Admin admin = repo.findByEmail(email);
@@ -39,6 +44,7 @@ public class AdminServiceImpl implements AdminService {
         return null;
     }
 
+    // ================== CREATE ADMIN ==================
     @Override
     public Admin createAdmin(Admin admin) {
 
@@ -48,56 +54,110 @@ public class AdminServiceImpl implements AdminService {
         }
 
         admin.setPassword(encoder.encode(admin.getPassword()));
-
         return repo.save(admin);
     }
 
+    // ================== FIND BY EMAIL ==================
     @Override
     public Admin findByEmail(String email) {
         return repo.findByEmail(email);
     }
 
-    // ------------------ FORGOT PASSWORD -----------------------
+    // ================== FORGOT PASSWORD ==================
     @Override
     public ResponseEntity<?> forgotPassword(String email) {
+
         Admin admin = repo.findByEmail(email);
 
         if (admin == null) {
-            return ResponseEntity.status(404).body(Map.of("error", "Email not found"));
+            return ResponseEntity.status(404).body(
+                    Map.of("error", "Email not found")
+            );
         }
 
+        // ✅ Generate secure 6-digit OTP
         String otp = String.valueOf(100000 + new Random().nextInt(900000));
-        otpStore.put(email, otp);
 
-        emailService.sendEmail(email, "Admin Password Reset OTP",
-                "Your OTP is: " + otp + "\nValid for 10 minutes.");
+        // ✅ Store OTP with expiry
+        otpStore.put(email, new OtpData(otp, Instant.now().toEpochMilli()));
 
-        return ResponseEntity.ok(Map.of("message", "OTP sent to email"));
+        // ✅ HTML Email Body (Brevo safe)
+        String subject = "Admin Password Reset OTP - Hilton Realtors";
+
+        String body = """
+            <div style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2>Password Reset OTP</h2>
+                <p>Your OTP is:</p>
+                <h1 style="letter-spacing: 4px;">%s</h1>
+                <p>This OTP is valid for <b>10 minutes</b>.</p>
+                <p>If you did not request this, please ignore this email.</p>
+            </div>
+            """.formatted(otp);
+
+        emailService.sendEmail(email, subject, body);
+
+        return ResponseEntity.ok(
+                Map.of("message", "OTP sent to your email")
+        );
     }
 
-    // ------------------ RESET PASSWORD -----------------------
+    // ================== RESET PASSWORD ==================
     @Override
     public ResponseEntity<?> resetPassword(String email, String otp, String newPassword) {
 
         if (!otpStore.containsKey(email)) {
-            return ResponseEntity.status(400).body("OTP not generated");
+            return ResponseEntity.status(400).body(
+                    Map.of("error", "OTP not generated")
+            );
         }
 
-        if (!otpStore.get(email).equals(otp)) {
-            return ResponseEntity.status(400).body("Invalid OTP");
+        OtpData data = otpStore.get(email);
+
+        long now = Instant.now().toEpochMilli();
+
+        // ✅ Check OTP Expiry (10 min)
+        if (now - data.createdAt > OTP_EXPIRY_MS) {
+            otpStore.remove(email);
+            return ResponseEntity.status(400).body(
+                    Map.of("error", "OTP expired. Please request again.")
+            );
+        }
+
+        // ✅ OTP Match Check
+        if (!data.otp.equals(otp)) {
+            return ResponseEntity.status(400).body(
+                    Map.of("error", "Invalid OTP")
+            );
         }
 
         Admin admin = repo.findByEmail(email);
 
         if (admin == null) {
-            return ResponseEntity.status(404).body("Admin not found");
+            return ResponseEntity.status(404).body(
+                    Map.of("error", "Admin not found")
+            );
         }
 
+        // ✅ Secure password update
         admin.setPassword(encoder.encode(newPassword));
         repo.save(admin);
 
+        // ✅ Clear OTP after success
         otpStore.remove(email);
 
-        return ResponseEntity.ok(Map.of("message", "Password reset successful"));
+        return ResponseEntity.ok(
+                Map.of("message", "Password reset successful")
+        );
+    }
+
+    // ================== OTP HOLDER ==================
+    private static class OtpData {
+        String otp;
+        long createdAt;
+
+        OtpData(String otp, long createdAt) {
+            this.otp = otp;
+            this.createdAt = createdAt;
+        }
     }
 }
